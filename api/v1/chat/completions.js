@@ -1,10 +1,19 @@
-// api/v1/chat/completions.js
-
 export const config = {
-  runtime: 'nodejs', // 使用標準 Node.js 以配合 vercel.json 的地區鎖定
+  runtime: 'nodejs',
 };
 
 export default async function handler(req, res) {
+  // --- 🔥 新增：CORS 設定 (允許本地 HTML 連接) ---
+  res.setHeader('Access-Control-Allow-Origin', '*'); // 允許所有網址/本地檔案連接
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // 處理瀏覽器的 "Preflight" 預檢請求 (當瀏覽器問 Server 俾唔俾連個陣)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  // --------------------------------------------------
+
   // 1. 只容許 POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: { message: 'Method Not Allowed', type: 'invalid_request_error' } });
@@ -17,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   const userToken = authHeader.split(' ')[1];
-  // 在 Vercel 環境變數設定 ALLOWED_KEYS="pass1,pass2,pass3" (用逗號分隔)
+  // 在 Vercel 環境變數設定 ALLOWED_KEYS="Hugo,pass2"
   const allowedKeys = (process.env.ALLOWED_KEYS || '').split(',');
   
   if (!allowedKeys.includes(userToken)) {
@@ -34,11 +43,10 @@ export default async function handler(req, res) {
     let extraBody = {};
 
     if (model.startsWith('gemini')) {
-      // --- Google Gemini (OpenAI Compatibility) ---
+      // --- Google Gemini ---
       targetUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
       apiKey = process.env.GEMINI_API_KEY;
       
-      // Gemini 3 Pro 特殊優化
       if (model.includes('gemini-3')) {
         extraBody.reasoning_effort = "high"; 
       }
@@ -46,7 +54,6 @@ export default async function handler(req, res) {
       // --- Cerebras ---
       targetUrl = "https://api.cerebras.ai/v1/chat/completions";
       apiKey = process.env.CEREBRAS_API_KEY;
-      // 偽裝 Header 避開 Cloudflare
       extraHeaders['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     }
 
@@ -61,7 +68,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model,
         messages,
-        stream: stream || false, // 暫時只支援非串流 (簡單啲)，如需串流要改寫 Response Handling
+        stream: false, 
         ...otherParams,
         ...extraBody
       })
@@ -80,8 +87,6 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    
-    // 5. 回傳標準 OpenAI 格式
     return res.status(200).json(data);
 
   } catch (error) {
