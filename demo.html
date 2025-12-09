@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hugo Custom AI Interface</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #121212;
+            --sidebar-bg: #1e1e1e;
+            --input-bg: #2c2c2c;
+            --text-main: #e0e0e0;
+            --text-sub: #a0a0a0;
+            --accent: #4caf50; /* Green accent */
+            --border: #333;
+            --bubble-user: #263238;
+            --bubble-ai: #1e1e1e;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Sidebar (Settings) --- */
+        #sidebar {
+            width: 300px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .brand { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 10px; }
+
+        .control-group { margin-bottom: 10px; }
+        .control-group label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 5px; }
+        
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        
+        input:focus, textarea:focus { border-color: var(--accent); }
+
+        textarea.sys-prompt {
+            resize: vertical;
+            min-height: 80px;
+            font-size: 0.85rem;
+        }
+
+        button.action-btn {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: auto;
+        }
+        button.action-btn:hover { background: #b71c1c; }
+
+        /* --- Main Chat Area --- */
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 100px;
+            scroll-behavior: smooth;
+        }
+
+        .message { display: flex; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
+        .message.user { justify-content: flex-end; }
+        .message.ai { justify-content: flex-start; }
+
+        .bubble {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .user .bubble { background: var(--bubble-user); border-bottom-right-radius: 2px; }
+        .ai .bubble { background: var(--bubble-ai); border-bottom-left-radius: 2px; border: 1px solid var(--border); }
+
+        /* Markdown Styling */
+        .bubble pre { background: #111; padding: 10px; border-radius: 6px; overflow-x: auto; }
+        .bubble code { font-family: 'Consolas', monospace; font-size: 0.9em; color: #ffab91; }
+        .bubble p { margin: 5px 0; }
+
+        /* --- Input Area --- */
+        #input-area {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: var(--bg-color);
+            padding: 15px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+
+        textarea#user-msg {
+            flex: 1;
+            height: 50px;
+            resize: none;
+        }
+
+        button#send-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button#send-btn:hover { opacity: 0.9; }
+        button#send-btn:disabled { background: #555; cursor: not-allowed; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            #sidebar { width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR: Settings -->
+    <aside id="sidebar">
+        <div class="brand">API Playground</div>
+        
+        <div class="control-group">
+            <label>API Key (Password)</label>
+            <input type="password" id="api-key" placeholder="Enter 'Hugo' or similar">
+        </div>
+
+        <div class="control-group">
+            <label>Model Name (Manual Input)</label>
+            <input type="text" id="model-name" placeholder="e.g. gemini-3-pro-preview" list="model-suggestions">
+            <!-- Optional suggestions for convenience -->
+            <datalist id="model-suggestions">
+                <option value="gemini-3-pro-preview">
+                <option value="gemini-2.5-pro">
+                <option value="llama-3.3-70b">
+                <option value="gpt-oss-120b">
+                <option value="qwen-3-235b-a22b-instruct-2507">
+            </datalist>
+        </div>
+
+        <div class="control-group">
+            <label>System Prompt (Instructions)</label>
+            <textarea id="sys-prompt" class="sys-prompt" placeholder="e.g. You are a helpful Python tutor."></textarea>
+        </div>
+
+        <button class="action-btn" onclick="clearChat()">Clear Chat</button>
+    </aside>
+
+    <!-- MAIN: Chat -->
+    <main id="main">
+        <div id="chat-history">
+            <div class="message ai">
+                <div class="bubble">Ready. Configure your model settings on the left and start chatting.</div>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <textarea id="user-msg" placeholder="Type a message... (Ctrl+Enter to send)"></textarea>
+            <button id="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </main>
+
+    <script>
+        // --- Configuration ---
+        // --- ⭐️ Set api url here ⭐️ ---
+        const API_URL = "https://universal-ai-gateway.vercel.app/api/v1/chat/completions";
+        
+        // --- Elements ---
+        const historyEl = document.getElementById('chat-history');
+        const inputEl = document.getElementById('user-msg');
+        const sendBtn = document.getElementById('send-btn');
+        
+        const apiKeyEl = document.getElementById('api-key');
+        const modelNameEl = document.getElementById('model-name');
+        const sysPromptEl = document.getElementById('sys-prompt');
+
+        // --- State Management (Conversational History) ---
+        let messageHistory = []; 
+
+        // --- Load Settings from LocalStorage ---
+        window.onload = () => {
+            if(localStorage.getItem('hugo_api_key')) apiKeyEl.value = localStorage.getItem('hugo_api_key');
+            if(localStorage.getItem('hugo_model')) modelNameEl.value = localStorage.getItem('hugo_model');
+            if(localStorage.getItem('hugo_sys')) sysPromptEl.value = localStorage.getItem('hugo_sys');
+            
+            // Set default if empty
+            if(!modelNameEl.value) modelNameEl.value = "gemini-3-pro-preview";
+        };
+
+        // --- Save Settings ---
+        function saveSettings() {
+            localStorage.setItem('hugo_api_key', apiKeyEl.value);
+            localStorage.setItem('hugo_model', modelNameEl.value);
+            localStorage.setItem('hugo_sys', sysPromptEl.value);
+        }
+
+        // --- Markdown Setup ---
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            }
+        });
+
+        // --- Messaging Logic ---
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                sendMessage();
+            }
+        });
+
+        function appendUI(role, text) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            if (role === 'ai') {
+                bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            } else {
+                bubble.innerText = text;
+            }
+            
+            div.appendChild(bubble);
+            historyEl.appendChild(div);
+            historyEl.scrollTop = historyEl.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const text = inputEl.value.trim();
+            const apiKey = apiKeyEl.value.trim();
+            const model = modelNameEl.value.trim();
+            const systemPrompt = sysPromptEl.value.trim();
+
+            if (!text) return;
+            if (!apiKey) { alert("Please enter API Key!"); return; }
+            if (!model) { alert("Please enter Model Name!"); return; }
+
+            // Save preferences
+            saveSettings();
+
+            // UI Update
+            appendUI('user', text);
+            inputEl.value = '';
+            
+            // Loading State
+            const loadingId = 'loading-' + Date.now();
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message ai';
+            loadingDiv.id = loadingId;
+            loadingDiv.innerHTML = `<div class="bubble" style="color:#888;">Thinking...</div>`;
+            historyEl.appendChild(loadingDiv);
+            historyEl.scrollTop = historyEl.scrollHeight;
+            sendBtn.disabled = true;
+
+            // Construct Messages Payload
+            // 1. Add System Prompt (Always first if exists)
+            const apiMessages = [];
+            if (systemPrompt) {
+                apiMessages.push({ role: "system", content: systemPrompt });
+            }
+            // 2. Add Conversation History (Optional: For simple manual tool, we can just send System + User to save tokens, OR full history. Let's do simple history)
+            // Ideally, we push previous messages here. For this simple tool, let's append current.
+            messageHistory.push({ role: "user", content: text });
+            
+            // Combine all
+            const finalPayload = [...apiMessages, ...messageHistory];
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: finalPayload
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Remove Loading
+                document.getElementById(loadingId).remove();
+
+                if (response.ok) {
+                    const aiContent = data.choices[0].message.content;
+                    appendUI('ai', aiContent);
+                    messageHistory.push({ role: "assistant", content: aiContent });
+                } else {
+                    appendUI('ai', `⚠️ Error: ${data.error?.message || JSON.stringify(data)}`);
+                    // Don't save error to history
+                    messageHistory.pop(); 
+                }
+
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                appendUI('ai', `⚠️ Network Error: ${error.message}`);
+                messageHistory.pop();
+            }
+
+            sendBtn.disabled = false;
+        }
+
+        function clearChat() {
+            historyEl.innerHTML = '<div class="message ai"><div class="bubble">Chat cleared. Settings retained.</div></div>';
+            messageHistory = [];
+        }
+    </script>
+</body>
+</html>
