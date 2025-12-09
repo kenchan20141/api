@@ -12,7 +12,7 @@
 
 ---
 
-### 第一部分：理論基礎 (Part 1: Theory)
+### 第一部分：理論基礎 
 
 #### 1. 問題背景：為何會出現「存取被拒」？
 當我們在香港直接嘗試連接 Google Gemini 或 Cerebras 的 API 時，可能會收到 `403 Forbidden` 或 `Location not supported` 的錯誤訊息。這是因為 API 供應商實施了**地理圍欄（Geo-fencing）**技術：
@@ -40,7 +40,7 @@
 
 ---
 
-### 第二部分：實戰部署 (Part 2: Deployment Guide)
+### 第二部分：實戰部署 
 
 本部分將指導每位同學建立屬於自己的 AI Gateway。
 
@@ -56,11 +56,11 @@
 ---
 
 #### 步驟一：獲取代碼 (Fork Repository)
-我們需要複製一份老師預備好的代碼到你自己的 GitHub 帳戶中。
+我們需要複製一份預備好的代碼到你自己的 GitHub 帳戶中。
 
 1.  登入你的 **GitHub** 帳號。
-2.  進入老師提供的專案連結：
-    *   `[請在此填入老師你的 GitHub Repo 連結]`
+2.  進入已準備的專案連結：
+    *   `[https://github.com/hugow0528/Universal-AI-Gateway]`
 3.  點擊頁面右上角的 **"Fork"** 按鈕。
 4.  在彈出的視窗中點擊 **"Create fork"**。
     *   *意義：這代表你將這份代碼「複印」了一份到你自己的名下，現在你有權修改及控制它。*
@@ -148,7 +148,7 @@ You need to copy the code prepared by the teacher to your own GitHub account.
 
 1.  Log in to your **GitHub** account.
 2.  Go to the project link provided by the teacher:
-    *   `[Teacher's GitHub Repo Link Here]`
+    *   `https://github.com/hugow0528/Universal-AI-Gateway`
 3.  Click the **"Fork"** button in the top right corner.
 4.  Click **"Create fork"** in the pop-up window.
     *   *Meaning: This creates a copy of the code under your name, giving you permission to modify and control it.*
