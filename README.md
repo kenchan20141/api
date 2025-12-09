@@ -37,7 +37,7 @@ from openai import OpenAI
 
 # 設定你的 Gateway 地址和密碼
 client = OpenAI(
-    base_url="https://你的-vercel-專案名.vercel.app/api/v1",
+    base_url="https://hugo-api-v1.vercel.app/api/v1",
     api_key="你的_自訂_密碼"  # 例如: friend1
 )
 
@@ -54,7 +54,7 @@ print(response.choices[0].message.content)
 
 ### 2. cURL (Command Line)
 ```bash
-curl https://你的-vercel-專案名.vercel.app/api/v1/chat/completions \
+curl https://hugo-api-v1.vercel.app/api/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer 你的_自訂_密碼" \
   -d '{
@@ -68,7 +68,7 @@ curl https://你的-vercel-專案名.vercel.app/api/v1/chat/completions \
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "https://你的-vercel-專案名.vercel.app/api/v1",
+  baseURL: "https://hugo-api-v1.vercel.app/api/v1",
   apiKey: "你的_自訂_密碼"
 });
 
