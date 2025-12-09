@@ -8,21 +8,18 @@ export default async function handler(req, res) {
   // --- 🔥 強力 CORS 設定 (修正 Connection Error) ---
   res.setHeader('Access-Control-Allow-Origin', '*'); 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  // 關鍵修正：OpenAI SDK 會傳好多怪 Headers (x-stainless...)，要全部允許
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, OpenAI-Beta, x-stainless-os, x-stainless-arch, x-stainless-lang, x-stainless-runtime, x-stainless-runtime-version, x-stainless-package-version');
 
-  // 處理瀏覽器 Preflight 請求
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
   // --------------------------------------------------
 
-  // 1. 只容許 POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: { message: 'Method Not Allowed', type: 'invalid_request_error' } });
   }
 
-  // 2. 驗證密碼
+  // 驗證你的 Gateway 密碼 (ALLOWED_KEYS)
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: { message: 'Missing Authorization header', type: 'authentication_error' } });
@@ -38,7 +35,6 @@ export default async function handler(req, res) {
   try {
     const { model, messages, stream, ...otherParams } = req.body;
 
-    // 3. 路由選擇
     let targetUrl = '';
     let apiKey = '';
     let extraHeaders = {};
@@ -49,12 +45,30 @@ export default async function handler(req, res) {
       apiKey = process.env.GEMINI_API_KEY;
       if (model.includes('gemini-3')) { extraBody.reasoning_effort = "high"; }
     } else {
+      // --- 🟢 修改部分開始：CEREBRAS 多 KEY 支援 ---
       targetUrl = "https://api.cerebras.ai/v1/chat/completions";
-      apiKey = process.env.CEREBRAS_API_KEY;
+      
+      // 1. 取得所有 Keys 字串 (預設為空字串避免報錯)
+      const rawKeys = process.env.CEREBRAS_API_KEY || '';
+      
+      // 2. 用逗號分割，並過濾掉空白或無效的項目
+      const cerebrasKeys = rawKeys.split(',').map(k => k.trim()).filter(k => k.length > 0);
+
+      // 3. 檢查是否有 Key
+      if (cerebrasKeys.length === 0) {
+        return res.status(500).json({ error: { message: 'No Cerebras API Keys configured on server', type: 'server_configuration_error' } });
+      }
+
+      // 4. 隨機選取一個 Key (簡單的 Load Balancing)
+      const randomIndex = Math.floor(Math.random() * cerebrasKeys.length);
+      apiKey = cerebrasKeys[randomIndex];
+
+      console.log(`Using Cerebras Key Index: ${randomIndex}`); // (選用) 在 Log 顯示用了第幾個 Key，方便除錯
+
       extraHeaders['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      // --- 🟢 修改部分結束 ---
     }
 
-    // 4. 轉發請求
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -65,7 +79,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model,
         messages,
-        stream: false,
+        stream: false, // 暫時強制 false，若要支援 Stream 需改寫回傳邏輯
         ...otherParams,
         ...extraBody
       })
@@ -73,7 +87,6 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      // 在 Vercel Logs 顯示錯誤，方便除錯
       console.error(`Upstream Error (${model}):`, errorText);
       return res.status(response.status).json({ error: { message: `Upstream Error: ${errorText}`, type: 'upstream_error' } });
     }
